@@ -28,10 +28,16 @@ func messageFromStoreddReminder(stored StoredReminder) tb.Message {
 func initDB(ctx context.Context) {
 	dbCtx = ctx
 
-	dbString := fmt.Sprintf("mongo://%s:%s", mongoHostname, mongoPort)
-	client, err := mongo.Connect(dbCtx, options.Client().ApplyURI(dbString))
+	dbString := fmt.Sprintf("mongodb://%s:%s", mongoHostname, mongoPort)
+	fmt.Println(dbString, "dbString")
+	clientOption := options.Client().ApplyURI(dbString)
+	client, err := mongo.Connect(dbCtx, clientOption)
+	if err != nil {
+		log.Fatal(err, "++++++++=")
+	}
 	dbClient = client
 	dbCursor = dbClient.Database("telegram")
+	fmt.Println(dbCursor, "DBCURSOR")
 	dbCol = dbCursor.Collection("reminders")
 
 	if err != nil {
@@ -68,8 +74,32 @@ func loadStoredReminders() {
 	}
 }
 
-func getStoredReminders(id primitive.ObjectID) (StoredReminder, error) {
+func getStoredRemindersID(id primitive.ObjectID) (StoredReminder, error) {
 	reminder := StoredReminder{}
-
+	res := dbCol.FindOne(dbCtx, bson.M{"_id": id})
+	err := res.Decode(&reminder)
+	if err != nil {
+		log.Println("Unable to load DB message from ID")
+		return reminder, err
+	}
 	return reminder, nil
+}
+
+func storeMessageIntoDB(m *tb.Message, recipient *tb.User, timestamp int64) primitive.ObjectID {
+	// Return ObjectId
+	storedReminder := StoredReminder{ChatID: m.Chat.ID, MessageID: m.ID, User: recipient, Timestamp: timestamp}
+	res, err := dbCol.InsertOne(dbCtx, storedReminder)
+	if err != nil {
+		log.Panic(err)
+	}
+	id := res.InsertedID.(primitive.ObjectID)
+	return id
+}
+
+func removeMessageFromDB(id primitive.ObjectID) int64 {
+	res, err := dbCol.DeleteMany(dbCtx, bson.M{})
+	if err != nil {
+		log.Panic(err)
+	}
+	return res.DeletedCount
 }

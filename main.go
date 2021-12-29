@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"log"
+
+	tb "gopkg.in/tucnak/telebot.v2"
 )
 
 func init() {
@@ -11,6 +14,22 @@ func init() {
 }
 
 func main() {
+	defer dbCancel()
+
+	pref := getBotPref()
+	b, err := tb.NewBot(pref)
+	if err != nil {
+		log.Fatal(err)
+	}
+	botInstance = b
+	loadStoredReminders()
+	setHandlers()
+	InitMenu()
+
+	log.Println("Bot Started!")
+	botInstance.Start()
+
+	///////////Legacy CODE //////////////
 	// file, err := ioutil.ReadFile("tokens.json")
 	// if err != nil {
 	// 	log.Fatal(err)
