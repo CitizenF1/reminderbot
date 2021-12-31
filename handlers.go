@@ -1,6 +1,10 @@
 package main
 
 import (
+	"strconv"
+	"strings"
+	"time"
+
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
@@ -19,12 +23,12 @@ func startHandler(m *tb.Message) {
 func remindHandler(m *tb.Message) {
 	wait, err := getWaitTime(m.Payload)
 	if m.Payload == "" || err != nil {
-		botInstance.Send(m.Chat, "No valid time units found!")
+		botInstance.Send(m.Chat, "Не правильная единица времени!")
 		return
 	}
 
 	if m.ReplyTo == nil {
-		botInstance.Send(m.Chat, "No message to farward!")
+		botInstance.Send(m.Chat, "Нет сообщения для пересылки !")
 		return
 	}
 
@@ -32,8 +36,22 @@ func remindHandler(m *tb.Message) {
 	go forwardMessageAfterDelay(wait, m.Sender, m.ReplyTo)
 }
 
-func listHandler(m *tb.Message) {
+//TODO
+//отмена напоминаний
+func cancelHandler(m *tb.Message) {
 
+}
+
+func listHandler(m *tb.Message) {
+	remiders, done := reminderHelper(m)
+	if !done {
+		textArray := []string{"У вас " + strconv.Itoa(len(remiders)) + " Активных напоминаний:"}
+		for i := range remiders {
+			textArray = append(textArray, time.Unix(remiders[i].Timestamp, 0).String())
+		}
+		text := strings.Join(textArray, "\n")
+		botInstance.Send(m.Sender, text)
+	}
 }
 
 func onTextHandler(m *tb.Message) {
@@ -47,7 +65,7 @@ func onTextHandler(m *tb.Message) {
 		// Already waiting
 		wait, err := getWaitTime(m.Text)
 		if err != nil {
-			botInstance.Send(m.Sender, "No valid match! Aborting...")
+			botInstance.Send(m.Sender, "Нет совпадений!...")
 		} else {
 			go confirmReminderSet(wait, m.Sender)
 			go forwardMessageAfterDelay(wait, m.Sender, waitingMessage)
@@ -56,6 +74,6 @@ func onTextHandler(m *tb.Message) {
 		delete(currentLimboUsers, m.Sender.ID)
 	} else {
 		currentLimboUsers[m.Sender.ID] = m
-		botInstance.Send(m.Sender, "When should I remind you?")
+		botInstance.Send(m.Sender, "Когда мне напомнить?")
 	}
 }

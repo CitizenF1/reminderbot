@@ -1,8 +1,11 @@
 package main
 
 import (
+	"errors"
 	"log"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -35,6 +38,19 @@ func getBotPref() tb.Settings {
 	return pref
 }
 
+func reminderHelper(m *tb.Message) ([]StoredReminder, bool) {
+	done := true
+	reminders, err := getUserReminders(m.Sender)
+	if err != nil {
+		botInstance.Send(m.Chat, "Ошибка поиска напоминаний")
+	} else if len(reminders) == 0 {
+		botInstance.Send(m.Chat, "Нет активных напоминаний")
+	} else {
+		done = false
+	}
+	return reminders, done
+}
+
 func forwaredMessage(recipient *tb.User, message *tb.Message) {
 	botInstance.Forward(recipient, message)
 }
@@ -60,11 +76,29 @@ func forwardMessageAfterDelay(wait Reminder, recipient *tb.User, message *tb.Mes
 	forwardStoredMessageAfterDelay(id, wait.duration)
 }
 
-func getWaitTime(payload string) (Reminder, error)
+func getWaitTime(payload string) (Reminder, error) {
+	temp := strings.Join(timeUnits, "|")
+	waitExpr := regexp.MustCompile(`(\d+) (` + temp + `)s?`)
+
+	matches := waitExpr.FindStringSubmatch(payload)
+
+	if matches == nil {
+		return Reminder{}, errors.New("No matches found")
+	}
+
+	quant, _ := strconv.Atoi(matches[1])
+	units := matches[2]
+
+	// TODO: Fix how duration is being generated
+	seconds := int64(quant * unitMap[units])
+	duration := time.Duration(seconds) * time.Second
+	timestamp := time.Now().Add(duration)
+	return Reminder{units: units, quantity: quant, duration: duration, timestamp: timestamp.Unix()}, nil
+}
 
 func confirmReminderSet(wait Reminder, recipient tb.Recipient) {
 	stringQuantity := strconv.Itoa(wait.quantity)
-	string := "Reminder set fot " + stringQuantity + " " + wait.units + "s!"
+	string := "Напоминание установлено для " + stringQuantity + " " + wait.units + "s!"
 	botInstance.Send(recipient, string)
 }
 
